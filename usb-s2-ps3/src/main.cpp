@@ -11,24 +11,32 @@ static constexpr uint32_t BAUD = 115200;
 static constexpr uint32_t INPUT_TIMEOUT_MS = 120;
 static constexpr uint32_t REPORT_INTERVAL_MS = 10;
 
-// HID report ID 1, 48 bytes of payload. The real DS3 has more feature reports
-// and a different descriptor; those are NOT implemented in this prototype.
+// Diagnostic HID descriptor: explicitly exposes 24 buttons and four axes.
+// This is NOT an authentic DualShock 3 descriptor or complete DS3 emulation.
+// Payload layout remains 48 bytes, keeping existing UART->report mapping.
 static const uint8_t ds3_like_descriptor[] = {
-  0x05, 0x01,       // Generic Desktop
-  0x09, 0x05,       // Game Pad
-  0xA1, 0x01,       // Application
+  0x05, 0x01,       // Usage Page (Generic Desktop)
+  0x09, 0x05,       // Usage (Game Pad)
+  0xA1, 0x01,       // Collection (Application)
   0x85, 0x01,       // Report ID 1
-  0x06, 0x00, 0xFF, // Vendor-defined raw report contents
-  0x09, 0x01,
+  // Byte 0: reserved
+  0x75, 0x08, 0x95, 0x01, 0x81, 0x03,
+  // Bytes 1..3: 24 digital buttons
+  0x05, 0x09,       // Usage Page (Button)
+  0x19, 0x01, 0x29, 0x18,
+  0x15, 0x00, 0x25, 0x01,
+  0x75, 0x01, 0x95, 0x18,
+  0x81, 0x02,
+  // Byte 4: reserved
+  0x75, 0x08, 0x95, 0x01, 0x81, 0x03,
+  // Bytes 5..8: left/right X/Y (same mapping as existing prototype)
+  0x05, 0x01,
+  0x09, 0x30, 0x09, 0x31, 0x09, 0x33, 0x09, 0x34,
   0x15, 0x00, 0x26, 0xFF, 0x00,
-  0x75, 0x08, 0x95, 0x30, // 48 bytes
-  0x81, 0x02,       // Input
-  0x09, 0x01,
-  0x75, 0x08, 0x95, 0x30,
-  0x91, 0x02,       // Output (48 bytes)
-  0x09, 0x01,
-  0x75, 0x08, 0x95, 0x30,
-  0xB1, 0x02,       // Feature (48 bytes, placeholder)
+  0x75, 0x08, 0x95, 0x04,
+  0x81, 0x02,
+  // Bytes 9..47: reserved / analog trigger data, not exposed yet
+  0x75, 0x08, 0x95, 0x27, 0x81, 0x03,
   0xC0
 };
 
@@ -115,11 +123,12 @@ static void receiveUART() {
 void setup() {
   Serial1.begin(BAUD, SERIAL_8N1, UART_RX, UART_TX);
   neutral();
-  // Experimental local DS3 identity, not a complete hardware clone.
-  USB.VID(0x054C);
-  USB.PID(0x0268);
-  USB.manufacturerName("Prototype");
-  USB.productName("DS3 USB bridge prototype");
+  // Debug profile for Windows control verification, not a DS3 clone.
+  // Espressif VID/PID used for development; do not impersonate a Sony DS3.
+  USB.VID(0x303A);
+  USB.PID(0x4002);
+  USB.manufacturerName("ESP32 Test Bridge");
+  USB.productName("UART Gamepad HID Diagnostic");
   pad.begin();
   USB.begin();
 }
